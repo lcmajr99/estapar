@@ -28,8 +28,6 @@
 	</scm>
 	<packaging>jar</packaging>
 	<properties>
-		<sonar.projectKey>parking-api</sonar.projectKey>
-		<sonar.host.url>http://localhost:9000</sonar.host.url>
 		<sonar.organization>lcmajr99</sonar.organization>
 		<java.version>21</java.version>
 	</properties>
