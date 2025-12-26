@@ -1,21 +1,27 @@
 package com.estapar.parking.config;
 
-import com.estapar.parking.dto.GarageResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
+
+import com.estapar.parking.dto.GarageResponse;
 
 @Component
 public class GarageClient {
 
-    private static final String GARAGE_URL = "http://localhost:3000/garage";
-
     private final RestTemplate restTemplate;
+    private final String garageUrl;
 
-    public GarageClient(RestTemplate restTemplate) {
+    public GarageClient(
+            RestTemplate restTemplate,
+            @Value("${garage.sim.url}") String garageUrl) {
         this.restTemplate = restTemplate;
+        this.garageUrl = garageUrl;
     }
 
     public GarageResponse fetchGarage() {
-        return restTemplate.getForObject(GARAGE_URL, GarageResponse.class);
+        return restTemplate.getForObject(
+                garageUrl + "/garage",
+                GarageResponse.class);
     }
 }

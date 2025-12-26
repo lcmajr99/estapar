@@ -7,6 +7,7 @@ import com.estapar.parking.dto.ParkingSpotDTO;
 import com.estapar.parking.dto.SectorDTO;
 import com.estapar.parking.repository.ParkingSpotRepository;
 import com.estapar.parking.repository.SectorRepository;
+import org.springframework.context.annotation.Profile;
 import org.springframework.transaction.annotation.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,6 +19,7 @@ import java.time.LocalTime;
 import java.util.HashMap;
 import java.util.Map;
 
+@Profile("bootstrap")
 @Component
 public class StartupConfig {
 
