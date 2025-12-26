@@ -32,4 +32,6 @@ jobs:
             ${{ runner.os }}-m2
 
       - name: Build with Maven
-        run: mvn clean verify
+        run: |
+          cd parking
+          mvn clean verify
