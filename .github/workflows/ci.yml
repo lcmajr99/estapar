@@ -38,4 +38,4 @@ jobs:
         working-directory: parking
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: mvn -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=lcmajr99_estapar
+        run: mvn -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=lcmajr99_estapar -Dsonar.host.url=https://sonarcloud.io
