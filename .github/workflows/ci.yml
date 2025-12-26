@@ -36,7 +36,9 @@ jobs:
       - name: SonarCloud Scan
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: mvn sonar:sonar \
+        run: |
+          cd parking
+          mvn sonar:sonar \
           -Dsonar.projectKey=lcmajr99_estapar \
           -Dsonar.organization=lcmajr99 \
           -Dsonar.host.url=https://sonarcloud.io
