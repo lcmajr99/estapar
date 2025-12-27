@@ -1,0 +1,54 @@
+version: "3.9"
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: estapar-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: estapar
+      MYSQL_USER: estapar
+      MYSQL_PASSWORD: estapar
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  garage-sim:
+    image: cfontes0estapar/garage-sim:1.0.0
+    container_name: garage-sim
+    ports:
+      - "3000:3000"
+
+  app:
+    build: .
+    container_name: estapar-app
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      garage-sim:
+        condition: service_started
+    ports:
+      - "3003:3003"
+    environment:
+      GARAGE_SIM_URL: http://garage-sim:3000
+
+      SPRING_PROFILES_ACTIVE: db,bootstrap
+      SERVER_PORT: 3003
+
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/estapar
+      SPRING_DATASOURCE_USERNAME: estapar
+      SPRING_DATASOURCE_PASSWORD: estapar
+
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.MySQLDialect
+
+volumes:
+  mysql_data:

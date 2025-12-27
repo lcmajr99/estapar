@@ -7,12 +7,14 @@ import com.estapar.parking.dto.WebhookEventDTO;
 import com.estapar.parking.repository.ParkingSessionRepository;
 import com.estapar.parking.repository.ParkingSpotRepository;
 import com.estapar.parking.repository.SectorRepository;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.util.List;
 
+@Profile("db")
 @Service
 public class ParkingService {
 
