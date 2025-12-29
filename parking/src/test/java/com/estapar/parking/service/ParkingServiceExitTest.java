@@ -7,11 +7,8 @@ import com.estapar.parking.repository.ParkingSessionLogRepository;
 import com.estapar.parking.repository.ParkingSessionRepository;
 import com.estapar.parking.repository.ParkingSpotRepository;
 import com.estapar.parking.repository.SectorRepository;
-
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -28,52 +25,60 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ParkingServiceExitTest {
+    @Mock
+    private ParkingSessionRepository sessionRepository;
 
-    @Mock private ParkingSessionRepository sessionRepository;
-    @Mock private SectorRepository sectorRepository;
-    @Mock private ParkingSpotRepository parkingSpotRepository;
-    @Mock private ParkingSessionLogRepository logRepository;
+    @Mock
+    private ParkingSpotRepository spotRepository;
+
+    @Mock
+    private SectorRepository sectorRepository;
+
+    @Mock
+    private ParkingSessionLogRepository logRepository;
 
     @InjectMocks
-    private ParkingService parkingService;
+    private ExitEventHandler handler;
 
     @Test
-    @DisplayName("EXIT: 29 minutos deve cobrar zero")
-    void shouldApplyFreeTier() {
-        ParkingSession session = new ParkingSession();
-        session.setEntryTime(LocalDateTime.now().minusMinutes(29));
-        session.setSector(new Sector("A", 100, BigDecimal.TEN));
-        session.setAppliedPriceFactor(BigDecimal.ONE);
-
-        when(sessionRepository.findByLicensePlateIgnoreCaseAndExitTimeIsNull(any()))
-                .thenReturn(Optional.of(session));
-
-        parkingService.processEvent(exit("FREE"));
-
-        assertEquals(BigDecimal.ZERO, session.getTotalAmount());
-    }
-
-    @Test
-    @DisplayName("EXIT: deve falhar se saída for antes da entrada")
     void shouldFailOnTimeTravel() {
         ParkingSession session = new ParkingSession();
         session.setEntryTime(LocalDateTime.now());
 
-        when(sessionRepository.findByLicensePlateIgnoreCaseAndExitTimeIsNull(any()))
+        when(sessionRepository
+                .findByLicensePlateIgnoreCaseAndExitTimeIsNull(any()))
                 .thenReturn(Optional.of(session));
 
-        WebhookEventDTO exit = exit("TIME");
-        exit.setExit_time(LocalDateTime.now().minusMinutes(5));
+        WebhookEventDTO event = new WebhookEventDTO();
+        event.setLicensePlate("CAR-1");
+        event.setEventType("EXIT");
+        event.setExitTime(LocalDateTime.now().minusMinutes(5));
 
         assertThrows(IllegalArgumentException.class,
-                () -> parkingService.processEvent(exit));
+                () -> handler.handle(event));
     }
 
-    private WebhookEventDTO exit(String plate) {
+    @Test
+    void shouldApplyFreeTier() {
+        ParkingSession session = new ParkingSession();
+        session.setEntryTime(LocalDateTime.now().minusMinutes(20));
+        session.setSector(new Sector("A", 100, BigDecimal.TEN));
+        session.setAppliedPriceFactor(BigDecimal.ONE);
+
+        when(sessionRepository
+                .findByLicensePlateIgnoreCaseAndExitTimeIsNull(any()))
+                .thenReturn(Optional.of(session));
+
+        handler.handle(exitEvent());
+
+        assertEquals(BigDecimal.ZERO, session.getTotalAmount());
+    }
+
+    private WebhookEventDTO exitEvent() {
         WebhookEventDTO dto = new WebhookEventDTO();
-        dto.setLicense_plate(plate);
-        dto.setEvent_type("EXIT");
-        dto.setExit_time(LocalDateTime.now());
+        dto.setLicensePlate("CAR-1");
+        dto.setEventType("EXIT");
+        dto.setExitTime(LocalDateTime.now());
         return dto;
     }
 }

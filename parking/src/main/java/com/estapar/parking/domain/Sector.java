@@ -5,10 +5,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
-import org.hibernate.proxy.HibernateProxy;
 
 import java.math.BigDecimal;
-import java.util.Objects;
 
 @Getter
 @Setter
@@ -49,18 +47,15 @@ public class Sector {
     }
 
     @Override
-    public final boolean equals(Object o) {
+    public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null) return false;
-        Class<?> oEffectiveClass = o instanceof HibernateProxy ? ((HibernateProxy) o).getHibernateLazyInitializer().getPersistentClass() : o.getClass();
-        Class<?> thisEffectiveClass = this instanceof HibernateProxy ? ((HibernateProxy) this).getHibernateLazyInitializer().getPersistentClass() : this.getClass();
-        if (thisEffectiveClass != oEffectiveClass) return false;
-        Sector sector = (Sector) o;
-        return getCode() != null && Objects.equals(getCode(), sector.getCode());
+        if (!(o instanceof Sector other)) return false;
+        return id != null && id.equals(other.id);
     }
 
     @Override
-    public final int hashCode() {
-        return Objects.hash(code);
+    public int hashCode() {
+        return getClass().hashCode();
     }
+
 }

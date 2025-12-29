@@ -1,14 +1,12 @@
 package com.estapar.parking.controller;
 
 import com.estapar.parking.dto.RevenueDTO;
-import com.estapar.parking.service.ParkingService;
-
+import com.estapar.parking.service.RevenueService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
@@ -26,14 +24,14 @@ class RevenueControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
-    private ParkingService parkingService;
+    @MockitoBean
+    private RevenueService revenueService;
 
     @Test
     @DisplayName("GET /revenue deve retornar receita por setor")
     void shouldReturnRevenueBySector() throws Exception {
 
-        when(parkingService.calculateRevenueByDate(
+        when(revenueService.calculateRevenueByDate(
                 LocalDate.of(2025, 1, 1),
                 "A"
         )).thenReturn(new RevenueDTO(
