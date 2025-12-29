@@ -4,6 +4,7 @@ import com.estapar.parking.domain.ParkingSession;
 import com.estapar.parking.domain.ParkingSessionLog;
 import com.estapar.parking.domain.ParkingSpot;
 import com.estapar.parking.domain.Sector;
+import com.estapar.parking.dto.RevenueDTO;
 import com.estapar.parking.dto.WebhookEventDTO;
 import com.estapar.parking.repository.ParkingSessionLogRepository;
 import com.estapar.parking.repository.ParkingSessionRepository;
@@ -17,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
@@ -231,4 +233,33 @@ public class ParkingService {
         ParkingSessionLog log = new ParkingSessionLog(session, type, description);
         logRepository.save(log);
     }
+
+    // ... outros métodos ...
+
+    /**
+     * Calcula o faturamento total em um período.
+     * Método adicionado para encapsular a regra de negócio e facilitar testes.
+     */
+    public RevenueDTO calculateRevenueByDate(LocalDate date, String sector) {
+
+        LocalDateTime start = date.atStartOfDay();
+        LocalDateTime end = date.plusDays(1).atStartOfDay();
+
+        BigDecimal amount;
+
+        if (sector != null && !sector.isBlank()) {
+            amount = sessionRepository.sumRevenueBySectorAndPeriod(sector, start, end);
+        } else {
+            amount = sessionRepository.sumTotalRevenue(start, end);
+        }
+
+        if (amount == null) {
+            amount = BigDecimal.ZERO;
+        }
+
+        return new RevenueDTO(amount, start);
+    }
+
+
+
 }

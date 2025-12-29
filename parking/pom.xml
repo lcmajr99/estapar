@@ -113,7 +113,7 @@
 									<limit>
 										<counter>INSTRUCTION</counter>
 										<value>COVEREDRATIO</value>
-										<minimum>0.70</minimum>
+										<minimum>0.80</minimum>
 									</limit>
 								</limits>
 							</rule>
@@ -121,8 +121,10 @@
 						<excludes>
 							<exclude>**/dto/**</exclude>
 							<exclude>**/config/**</exclude>
-							<exclude>**/domain/**</exclude> <exclude>**/exception/**</exclude>
-							<exclude>**/*Application.*</exclude> </excludes>
+							<exclude>**/domain/**</exclude>
+							<exclude>**/exception/**</exclude>
+							<exclude>**/*Application.*</exclude>
+						</excludes>
 					</configuration>
 				</execution>
 			</executions>

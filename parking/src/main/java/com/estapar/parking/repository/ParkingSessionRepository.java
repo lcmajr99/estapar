@@ -24,9 +24,25 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSession, 
 
     Optional<ParkingSession> findByLicensePlateIgnoreCaseAndExitTimeIsNull(String licencePlate);
 
-    @Query("SELECT COALESCE(SUM(s.totalAmount), 0) FROM ParkingSession s " +
-            "WHERE s.status = 'FINISHED' AND s.exitTime BETWEEN :start AND :end")
-    BigDecimal sumTotalRevenue(@Param("start") LocalDateTime start,
-                               @Param("end") LocalDateTime end);
+    @Query("""
+        SELECT COALESCE(SUM(s.totalAmount), 0)
+        FROM ParkingSession s
+        WHERE s.exitTime >= :start
+          AND s.exitTime < :end
+    """)
+    BigDecimal sumTotalRevenue(LocalDateTime start, LocalDateTime end);
+
+    @Query("""
+        SELECT COALESCE(SUM(s.totalAmount), 0)
+        FROM ParkingSession s
+        WHERE s.sector.code = :sector
+          AND s.exitTime >= :start
+          AND s.exitTime < :end
+    """)
+    BigDecimal sumRevenueBySectorAndPeriod(
+            String sector,
+            LocalDateTime start,
+            LocalDateTime end
+    );
 
 }

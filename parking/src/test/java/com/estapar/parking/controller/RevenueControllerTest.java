@@ -1,18 +1,20 @@
 package com.estapar.parking.controller;
 
-import com.estapar.parking.repository.ParkingSessionRepository;
+import com.estapar.parking.dto.RevenueDTO;
+import com.estapar.parking.service.ParkingService;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -25,20 +27,25 @@ class RevenueControllerTest {
     private MockMvc mockMvc;
 
     @MockBean
-    private ParkingSessionRepository sessionRepository;
+    private ParkingService parkingService;
 
     @Test
-    @DisplayName("GET /revenue: Deve retornar 200 OK e o total faturado")
-    void shouldReturnTotalRevenue() throws Exception {
-        BigDecimal fakeTotal = new BigDecimal("150.00");
+    @DisplayName("GET /revenue deve retornar receita por setor")
+    void shouldReturnRevenueBySector() throws Exception {
 
-        when(sessionRepository.sumTotalRevenue(any(LocalDateTime.class), any(LocalDateTime.class)))
-                .thenReturn(fakeTotal);
+        when(parkingService.calculateRevenueByDate(
+                LocalDate.of(2025, 1, 1),
+                "A"
+        )).thenReturn(new RevenueDTO(
+                new BigDecimal("0.00"),
+                LocalDateTime.of(2025, 1, 1, 0, 0)
+        ));
 
-        // Ação e Validação
         mockMvc.perform(get("/revenue")
-                        .contentType(MediaType.APPLICATION_JSON))
+                        .param("date", "2025-01-01")
+                        .param("sector", "A"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalAmount").value(150.00));
+                .andExpect(jsonPath("$.amount").value(0.00))
+                .andExpect(jsonPath("$.currency").value("BRL"));
     }
 }
