@@ -1,71 +1,82 @@
 package com.estapar.parking.domain;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
-import lombok.AccessLevel;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.ToString;
+import org.hibernate.proxy.HibernateProxy;
 
-import java.time.OffsetDateTime;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.Objects;
 
-@Entity
-@Table(name = "parking_sessions")
 @Getter
+@Setter
+@ToString
 @NoArgsConstructor
+@Entity
+@Table(name = "parking_sessions", indexes = {
+        @Index(name = "idx_session_plate_active", columnList = "licensePlate, exitTime"),
+        @Index(name = "idx_session_entry", columnList = "entryTime")
+})
 public class ParkingSession {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Setter(AccessLevel.NONE)
     private Long id;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 20)
     private String licensePlate;
 
-    @ManyToOne(optional = false)
-    @JoinColumn(name = "sector_id")
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    @JoinColumn(name = "sector_id", nullable = false)
+    @ToString.Exclude
     private Sector sector;
 
-    @ManyToOne(optional = false)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parking_spot_id")
+    @ToString.Exclude
     private ParkingSpot parkingSpot;
 
     @Column(nullable = false)
-    private OffsetDateTime entryTime;
+    private LocalDateTime entryTime;
 
-    private OffsetDateTime exitTime;
+    private LocalDateTime exitTime;
 
-    private Double pricePerHour;
+    @Column(nullable = false, precision = 5, scale = 2)
+    private BigDecimal appliedPriceFactor;
 
-    private Double totalAmount;
+    @Column(precision = 10, scale = 2)
+    private BigDecimal totalAmount;
 
-    public ParkingSession(
-            String licensePlate,
-            Sector sector,
-            ParkingSpot parkingSpot,
-            OffsetDateTime entryTime,
-            Double pricePerHour
-    ) {
-        this.licensePlate = licensePlate;
-        this.sector = sector;
-        this.parkingSpot = parkingSpot;
-        this.entryTime = entryTime;
-        this.pricePerHour = pricePerHour;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private SessionStatus status = SessionStatus.ENTERING;
+
+    public enum SessionStatus {
+        ENTERING, PARKED, FINISHED
     }
 
-    public boolean isActive() {
-        return exitTime == null;
-    }
-
-    public void finish(OffsetDateTime exitTime, Double totalAmount) {
+    public void finish(LocalDateTime exitTime, BigDecimal amount) {
         this.exitTime = exitTime;
-        this.totalAmount = totalAmount;
+        this.totalAmount = amount;
+        this.status = SessionStatus.FINISHED;
+    }
+
+    @Override
+    public final boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null) return false;
+        Class<?> oEffectiveClass = o instanceof HibernateProxy ? ((HibernateProxy) o).getHibernateLazyInitializer().getPersistentClass() : o.getClass();
+        Class<?> thisEffectiveClass = this instanceof HibernateProxy ? ((HibernateProxy) this).getHibernateLazyInitializer().getPersistentClass() : this.getClass();
+        if (thisEffectiveClass != oEffectiveClass) return false;
+        ParkingSession that = (ParkingSession) o;
+        return getId() != null && Objects.equals(getId(), that.getId());
+    }
+
+    @Override
+    public final int hashCode() {
+        return this instanceof HibernateProxy ? ((HibernateProxy) this).getHibernateLazyInitializer().getPersistentClass().hashCode() : getClass().hashCode();
     }
 }

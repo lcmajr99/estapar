@@ -1,25 +1,33 @@
 package com.estapar.parking.service;
 
 import com.estapar.parking.domain.ParkingSession;
+import com.estapar.parking.domain.ParkingSessionLog;
 import com.estapar.parking.domain.ParkingSpot;
 import com.estapar.parking.domain.Sector;
 import com.estapar.parking.dto.WebhookEventDTO;
+import com.estapar.parking.repository.ParkingSessionLogRepository;
 import com.estapar.parking.repository.ParkingSessionRepository;
 import com.estapar.parking.repository.ParkingSpotRepository;
 import com.estapar.parking.repository.SectorRepository;
-import org.springframework.context.annotation.Profile;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 
-@Profile("db")
 @Service
 public class ParkingService {
 
+    private static final Logger logger = LoggerFactory.getLogger(ParkingService.class);
     private static final long FREE_MINUTES = 30;
 
+    private final ParkingSessionLogRepository logRepository; // <--- NOVO
     private final ParkingSessionRepository sessionRepository;
     private final ParkingSpotRepository parkingSpotRepository;
     private final SectorRepository sectorRepository;
@@ -27,106 +35,200 @@ public class ParkingService {
     public ParkingService(
             ParkingSessionRepository sessionRepository,
             ParkingSpotRepository parkingSpotRepository,
-            SectorRepository sectorRepository
+            SectorRepository sectorRepository,
+            ParkingSessionLogRepository logRepository
     ) {
         this.sessionRepository = sessionRepository;
         this.parkingSpotRepository = parkingSpotRepository;
         this.sectorRepository = sectorRepository;
+        this.logRepository = logRepository;
+
     }
 
-
+    /**
+     * Roteador de Eventos
+     */
     @Transactional
     public void processEvent(WebhookEventDTO event) {
+        logger.info("Processando evento: {} - Placa: {}", event.getEvent_type(), event.getLicense_plate());
 
-        if ("ENTRY".equals(event.getEvent_type())) {
-            handleEntry(event);
-            return;
-        }if ("EXIT".equals(event.getEvent_type())) {
-            handleExit(event);
-            return;
+        switch (event.getEvent_type()) {
+            case "ENTRY" -> handleEntry(event);
+            case "PARKED" -> handleParked(event);
+            case "EXIT" -> handleExit(event);
+            default -> logger.warn("Evento desconhecido ignorado: {}", event.getEvent_type());
         }
     }
 
+    /**
+     * Lógica de ENTRADA (Mundo Lógico)
+     * - Garante que há capacidade no setor.
+     * - Define o preço dinâmico.
+     * - Cria a sessão SEM vaga física definida.
+     */
     private void handleEntry(WebhookEventDTO event) {
-        sessionRepository.findByLicensePlateAndExitTimeIsNull(event.getLicense_plate())
-                .ifPresent(s -> {
-                    throw new IllegalStateException("Veículo já possui sessão ativa");
-                });
-
+        if (sessionRepository.findByLicensePlateIgnoreCaseAndExitTimeIsNull(event.getLicense_plate()).isPresent()) {
+            throw new IllegalStateException("Veículo já possui sessão ativa");
+        }
         List<Sector> sectors = sectorRepository.findAll();
         Sector selectedSector = null;
-        ParkingSpot selectedSpot = null;
-
-        double pricePerHour = 0.0;
 
         for (Sector sector : sectors) {
-
-            List<ParkingSpot> freeSpots =
-                    parkingSpotRepository.findBySectorAndOccupiedFalse(sector);
-
-            if (!freeSpots.isEmpty()) {
+            if (sector.getOccupiedCount() < sector.getMaxCapacity()) {
                 selectedSector = sector;
-                selectedSpot = freeSpots.get(0);
-
-                long active = sector.getMaxCapacity() - freeSpots.size();
-                double ratio = (double) active / sector.getMaxCapacity();
-                double base = sector.getBasePrice();
-
-                if (ratio < 0.25) pricePerHour = base * 0.90;
-                else if (ratio < 0.50) pricePerHour = base;
-                else if (ratio < 0.75) pricePerHour = base * 1.10;
-                else pricePerHour = base * 1.25;
-
-                break;
+                break; // Achou um setor com vaga
             }
         }
 
-        if (selectedSector == null ) {
-            throw new IllegalStateException("Entrada bloqueada.");
+        if (selectedSector == null) {
+            throw new IllegalStateException("Estacionamento Lotado (Full)");
         }
 
-        selectedSpot.occupy();
+        BigDecimal priceFactor = calculateDynamicPriceFactor(selectedSector);
 
-        ParkingSession session = new ParkingSession(
-                event.getLicense_plate(),
-                selectedSector,
-                selectedSpot,
-                event.getEntry_time(),
-                pricePerHour
-        );
-        parkingSpotRepository.save(selectedSpot);
+        selectedSector.incrementOccupancy();
+        sectorRepository.save(selectedSector);
+
+        ParkingSession session = new ParkingSession();
+        session.setLicensePlate(event.getLicense_plate());
+        session.setSector(selectedSector);
+        session.setEntryTime(event.getEntry_time());
+        session.setAppliedPriceFactor(priceFactor);
+        session.setStatus(ParkingSession.SessionStatus.ENTERING);
+
         sessionRepository.save(session);
+        saveLog(session, ParkingSessionLog.LogType.ENTRY_CREATED,
+                "Entrada no Setor " + selectedSector.getCode() + ". Fator Preço: " + priceFactor);
+        logger.info("Entrada registrada. Setor: {} | Fator Preço: {}", selectedSector.getCode(), priceFactor);
     }
 
-    private void handleExit(WebhookEventDTO event) {
-
+    /**
+     * Lógica de ESTACIONAMENTO (Mundo Físico)
+     * - Descobre onde o carro parou via GPS (Lat/Lng).
+     * - Vincula a vaga física à sessão.
+     */
+    @Transactional
+    private void handleParked(WebhookEventDTO event) {
         ParkingSession session = sessionRepository
-                .findByLicensePlateAndExitTimeIsNull(event.getLicense_plate())
-                .orElseThrow(() ->
-                        new IllegalStateException("Sessão ativa não encontrada")
-                );
+                .findByLicensePlateIgnoreCaseAndExitTimeIsNull(event.getLicense_plate().trim())
+                .orElseThrow(() -> new IllegalStateException("Evento PARKED sem sessão de ENTRY ativa"));
 
-        Duration duration = Duration.between(
-                session.getEntryTime(),
-                event.getExit_time()
-        );
+        ParkingSpot realSpot = parkingSpotRepository
+                .findByLatAndLng(event.getLat(), event.getLng())
+                .orElseThrow(() -> new IllegalStateException("Carro parou em coordenadas desconhecidas!"));
 
-        long totalMinutes = duration.toMinutes();
-        double totalAmount;
+        Sector predictedSector = session.getSector();
+        Sector realSector = realSpot.getSector();
 
-        if (totalMinutes <= FREE_MINUTES) {
-            totalAmount = 0.0;
-        } else {
-            long billableHours = (long) Math.ceil(totalMinutes / 60.0);
-            totalAmount = billableHours * session.getPricePerHour();
+        if (!realSector.equals(predictedSector)) {
+            logger.info("RECONCILIAÇÃO: Veículo trocou do Setor {} para o Setor {}",
+                    predictedSector.getCode(), realSector.getCode());
+
+            predictedSector.decrementOccupancy();
+            realSector.incrementOccupancy();
+
+            sectorRepository.save(predictedSector);
+            sectorRepository.save(realSector);
+
+            session.setSector(realSector);
+
+            BigDecimal newFactor = calculateDynamicPriceFactor(realSector);
+            session.setAppliedPriceFactor(newFactor);
+            saveLog(session, ParkingSessionLog.LogType.SECTOR_CHANGED,
+                    String.format("Cliente trocou do Setor %s para %s. Fator recalculado: %s",
+                            predictedSector.getCode(), realSector.getCode(), newFactor));
+            logger.info("Preço Recalculado. Novo Fator: {}", newFactor);
+        }else{
+            ParkingSessionLog log = new ParkingSessionLog();
+            log.setSession(session);
+            log.setEventTime(LocalDateTime.now());
+            log.setType(ParkingSessionLog.LogType.PARKED_CONFIRMED);
+            log.setDescription("Estacionamento confirmado no setor correto: " + realSector.getCode());
+
+            logRepository.save(log);
         }
 
-        session.finish(event.getExit_time(), totalAmount);
+        if (realSpot.isPhysicallyOccupied()) {
+            logger.warn("Conflito Físico: Vaga {} já estava marcada como ocupada.", realSpot.getId());
+        }
+        realSpot.setPhysicallyOccupied(true);
+        parkingSpotRepository.save(realSpot);
 
-        ParkingSpot spot = session.getParkingSpot();
-        spot.release();
-
-        parkingSpotRepository.save(spot);
+        session.setParkingSpot(realSpot);
+        session.setStatus(ParkingSession.SessionStatus.PARKED);
         sessionRepository.save(session);
+
+    }
+
+    /**
+     * Lógica de SAÍDA (Financeiro e Limpeza)
+     * - Calcula valor final.
+     * - Libera vaga física e ocupação lógica.
+     */
+    private void handleExit(WebhookEventDTO event) {
+        ParkingSession session = sessionRepository
+                .findByLicensePlateIgnoreCaseAndExitTimeIsNull(event.getLicense_plate())
+                .orElseThrow(() -> new IllegalStateException("Sessão ativa não encontrada para EXIT"));
+
+        if (event.getExit_time().isBefore(session.getEntryTime())) {
+            throw new IllegalArgumentException("Data de saída inválida (anterior à entrada)");
+        }
+
+        Duration duration = Duration.between(session.getEntryTime(), event.getExit_time());
+        long totalMinutes = duration.toMinutes();
+        BigDecimal finalAmount = calculateFinalAmount(session, totalMinutes);
+
+        if (session.getParkingSpot() != null) {
+            ParkingSpot spot = session.getParkingSpot();
+            spot.setPhysicallyOccupied(false);
+            parkingSpotRepository.save(spot);
+        } else {
+            logger.warn("Veículo saiu sem registrar evento PARKED (Uber/Drop-off).");
+        }
+
+        Sector sector = session.getSector();
+        sector.decrementOccupancy();
+        sectorRepository.save(sector);
+
+        session.finish(event.getExit_time(), finalAmount);
+        sessionRepository.save(session);
+        saveLog(session, ParkingSessionLog.LogType.EXIT_COMPLETED,
+                "Sessão encerrada. Valor Final: R$ " + finalAmount + ". Tempo: " + totalMinutes + " min.");
+        logger.info("Saída processada. Valor: R$ {}", finalAmount);
+    }
+
+    // --- Métodos Auxiliares ---
+
+    private BigDecimal calculateDynamicPriceFactor(Sector sector) {
+        if (sector.getMaxCapacity() == 0) return BigDecimal.ONE;
+
+        double ratio = (double) sector.getOccupiedCount() / sector.getMaxCapacity();
+
+        if (ratio < 0.25) return new BigDecimal("0.90"); // -10%
+        if (ratio < 0.50) return new BigDecimal("1.00"); // 0%
+        if (ratio < 0.75) return new BigDecimal("1.10"); // +10%
+        return new BigDecimal("1.25");                   // +25%
+    }
+
+    private BigDecimal calculateFinalAmount(ParkingSession session, long totalMinutes) {
+        if (totalMinutes <= FREE_MINUTES) {
+            return BigDecimal.ZERO;
+        }
+
+
+        long billableHours = (long) Math.ceil(totalMinutes / 60.0);
+
+        BigDecimal basePrice = session.getSector().getBasePrice();
+        BigDecimal factor = session.getAppliedPriceFactor();
+
+        BigDecimal pricePerHour = basePrice.multiply(factor);
+        BigDecimal total = pricePerHour.multiply(BigDecimal.valueOf(billableHours));
+
+        return total.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private void saveLog(ParkingSession session, ParkingSessionLog.LogType type, String description) {
+        ParkingSessionLog log = new ParkingSessionLog(session, type, description);
+        logRepository.save(log);
     }
 }
