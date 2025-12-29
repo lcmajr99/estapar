@@ -8,7 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 
-@Profile("db")
+//@Profile("db")
 @RestController
 @RequestMapping("/webhook")
 public class WebhookController {

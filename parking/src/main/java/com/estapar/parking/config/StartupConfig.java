@@ -2,39 +2,36 @@ package com.estapar.parking.config;
 
 import com.estapar.parking.domain.ParkingSpot;
 import com.estapar.parking.domain.Sector;
-import com.estapar.parking.dto.GarageResponse;
-import com.estapar.parking.dto.ParkingSpotDTO;
-import com.estapar.parking.dto.SectorDTO;
+import com.estapar.parking.dto.sim.SimGarageResponse;
+import com.estapar.parking.dto.sim.SimSectorDTO;
+import com.estapar.parking.dto.sim.SimSpotDTO;
 import com.estapar.parking.repository.ParkingSpotRepository;
 import com.estapar.parking.repository.SectorRepository;
-import org.springframework.context.annotation.Profile;
-import org.springframework.transaction.annotation.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.annotation.Profile;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalTime;
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
 
-@Profile("bootstrap")
+@Profile("!test")
 @Component
 public class StartupConfig {
 
-    private static final Logger logger =
-            LoggerFactory.getLogger(StartupConfig.class);
+    private static final Logger logger = LoggerFactory.getLogger(StartupConfig.class);
 
     private final GarageClient garageClient;
     private final SectorRepository sectorRepository;
     private final ParkingSpotRepository parkingSpotRepository;
 
-    public StartupConfig(
-            GarageClient garageClient,
-            SectorRepository sectorRepository,
-            ParkingSpotRepository parkingSpotRepository
-    ) {
+    public StartupConfig(GarageClient garageClient,
+                         SectorRepository sectorRepository,
+                         ParkingSpotRepository parkingSpotRepository) {
         this.garageClient = garageClient;
         this.sectorRepository = sectorRepository;
         this.parkingSpotRepository = parkingSpotRepository;
@@ -43,57 +40,65 @@ public class StartupConfig {
     @EventListener(ApplicationReadyEvent.class)
     @Transactional
     public void bootstrap() {
-
-        logger.info("Startup iniciado (ApplicationReadyEvent)");
+        logger.info("Iniciando sincronização com o Simulador...");
 
         try {
-            GarageResponse response = garageClient.fetchGarage();
-            Map<String, Sector> sectorMap = new HashMap<>();
+            SimGarageResponse response = garageClient.fetchGarage();
 
-            for (SectorDTO dto : response.getGarage()) {
-
-                Sector sector = sectorRepository
-                        .findByName(dto.getSector())
-                        .orElseGet(() -> {
-                            Sector s = new Sector();
-                            s.setName(dto.getSector());
-                            s.setBasePrice(dto.getBase_price());
-                            s.setMaxCapacity(dto.getMax_capacity());
-                            s.setOpenHour(LocalTime.parse(dto.getOpen_hour()));
-                            s.setCloseHour(LocalTime.parse(dto.getClose_hour()));
-                            s.setDurationLimitMinutes(dto.getDuration_limit_minutes());
-                            return sectorRepository.save(s);
-                        });
-
-                sectorMap.put(sector.getName(), sector);
+            if (response == null || response.garage() == null) {
+                logger.warn("Simulador retornou dados vazios.");
+                return;
             }
 
-            for (ParkingSpotDTO dto : response.getSpots()) {
+            Map<String, Sector> sectorCache = new HashMap<>();
 
-                Sector sector = sectorMap.get(dto.getSector());
+            for (SimSectorDTO dto : response.garage()) {
 
-                boolean exists = parkingSpotRepository
-                        .existsBySectorAndLatAndLng(sector, dto.getLat(), dto.getLng());
+                Sector sector = sectorRepository.findAll().stream()
+                        .filter(s -> s.getCode().equals(dto.code()))
+                        .findFirst()
+                        .orElseGet(() -> {
+                            Sector newSector = new Sector();
+                            newSector.setCode(dto.code());
+                            return newSector;
+                        });
+
+                sector.setMaxCapacity(dto.maxCapacity());
+                sector.setBasePrice(BigDecimal.valueOf(dto.basePrice()));
+
+                sector = sectorRepository.save(sector);
+                sectorCache.put(sector.getCode(), sector);
+            }
+
+            int spotsCreated = 0;
+            for (SimSpotDTO dto : response.spots()) {
+                Sector sector = sectorCache.get(dto.sectorCode());
+
+                if (sector == null) {
+                    logger.error("Vaga {} aponta para setor inexistente: {}", dto.id(), dto.sectorCode());
+                    continue;
+                }
+
+                boolean exists = parkingSpotRepository.existsBySectorAndLatAndLng(
+                        sector, dto.lat(), dto.lng()
+                );
 
                 if (!exists) {
-                    ParkingSpot spot = new ParkingSpot(
-                            sector,
-                            dto.getLat(),
-                            dto.getLng()
-                    );
+                    ParkingSpot spot = new ParkingSpot();
+                    spot.setSector(sector);
+                    spot.setLat(dto.lat());
+                    spot.setLng(dto.lng());
+                    spot.setPhysicallyOccupied(false);
+
                     parkingSpotRepository.save(spot);
+                    spotsCreated++;
                 }
             }
 
-            logger.info(
-                    "Startup finalizado: {} setores e {} vagas garantidas no sistema",
-                    sectorMap.size(),
-                    response.getSpots().size()
-            );
+            logger.info("✅ Startup finalizado! Setores: {}, Vagas Novas: {}", sectorCache.size(), spotsCreated);
+
         } catch (Exception ex) {
-            logger.error("Falha ao carregar configuração da garagem", ex);
+            logger.error("❌ FALHA CRÍTICA na inicialização da garagem", ex);
         }
-
-
     }
 }
