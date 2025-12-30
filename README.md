@@ -1,177 +1,142 @@
 # 🚗 Parking Event-Driven Backend
 
-## 📌 Versão
-**v1.0.0**
+Backend desenvolvido em **Java + Spring Boot**, orientado a eventos, para simular e gerenciar o fluxo de veículos em um sistema de estacionamento urbano.
 
 ---
 
-## 🧠 Nome do Projeto
-**Parking Event-Driven Backend**
+## 🧱 Tech Stack
 
----
-
-## 🧱 Stack Tecnológica
-
-### Backend
 - **Java 21**
 - **Spring Boot 3**
 - **Spring Web**
 - **Spring Data JPA**
 - **Hibernate**
-- **Spring Transaction Management**
-
-### Persistência
 - **PostgreSQL**
-- **JPA / Hibernate**
-
-### Qualidade & Testes
 - **JUnit 5**
 - **Mockito**
-- **JaCoCo (Code Coverage)**
-- **SonarCloud (Quality Gate)**
-
-### Build & DevOps
+- **JaCoCo**
+- **SonarCloud**
 - **Maven**
 - **Docker**
-- **Docker Compose**
-- **GitHub Actions (CI)**
-- **SonarCloud Integration**
-
-### Observabilidade
-- **SLF4J**
-- **Logback**
+- **GitHub Actions**
 
 ---
 
-## 📖 Descrição do Projeto
+## 📖 Project Description
 
-O **Parking Event-Driven Backend** é uma aplicação backend desenvolvida em **Java com Spring Boot**, projetada para gerenciar um sistema de estacionamento urbano orientado a **eventos**, simulando o comportamento real de veículos em um ambiente controlado.
+The **Parking Event-Driven Backend** is a backend application designed to handle a real-world parking system scenario using an **event-driven architecture**.
 
-A aplicação recebe eventos externos (via webhook) que representam o ciclo de vida de um veículo dentro do estacionamento, desde sua entrada lógica até a saída física, incluindo reconciliação de setor, cálculo de preços dinâmicos e faturamento.
+The system receives events from an external simulator (via webhook) that represent the lifecycle of a vehicle inside a parking facility. These events are processed to maintain logical and physical consistency, apply business rules, calculate pricing, and generate revenue reports.
 
-O projeto foi construído com foco em:
+The project was built focusing on:
 
-- Arquitetura limpa e modular
-- Separação clara de responsabilidades
-- Consistência transacional
-- Qualidade de código
-- Testabilidade
-- Integração com ferramentas modernas de CI/CD
-
----
-
-## 🧭 Modelo Orientado a Eventos
-
-O sistema processa três tipos principais de eventos:
-
-### 🚪 ENTRY
-Evento que representa a **entrada lógica** do veículo no estacionamento.
-
-Funcionalidades:
-- Verifica idempotência (não permite sessões duplicadas)
-- Seleciona setor com capacidade disponível
-- Aplica **preço dinâmico** conforme ocupação
-- Cria sessão de estacionamento sem vaga física definida
+- Clean architecture
+- Clear separation of responsibilities
+- Transactional consistency
+- Testability
+- Code quality
+- CI/CD integration
 
 ---
 
-### 🅿️ PARKED
-Evento que representa o **estacionamento físico real** do veículo.
+## 🧭 Event Flow
 
-Funcionalidades:
-- Localiza vaga via coordenadas GPS (latitude/longitude)
-- Valida divergência entre setor lógico e setor físico
-- Recalcula preço em caso de mudança de setor
-- Trata conflitos físicos de vaga
-- Registra logs de confirmação ou reconciliação
+The system processes three main event types:
 
----
+### ENTRY
+- Creates a new parking session
+- Validates idempotency
+- Selects an available sector
+- Applies dynamic pricing based on occupancy
+- Does not assign a physical parking spot
 
-### 🚗 EXIT
-Evento que representa a **saída do veículo**.
+### PARKED
+- Resolves the real parking spot using GPS coordinates
+- Reconciles logical and physical sectors
+- Recalculates pricing if sector changes
+- Handles physical conflicts
+- Confirms parking state
 
-Funcionalidades:
-- Calcula tempo total de permanência
-- Aplica regra de tolerância gratuita (30 minutos)
-- Calcula valor final da estadia
-- Libera vaga física e ocupação lógica
-- Finaliza a sessão e registra logs financeiros
-
----
-
-## 💰 Módulo de Faturamento (Revenue)
-
-O sistema disponibiliza um módulo de faturamento que permite:
-
-- Consulta de receita por data
-- Filtro opcional por setor
-- Retorno padronizado contendo:
-  - valor total
-  - moeda
-  - timestamp da consulta
-
-Esse módulo foi isolado em um serviço específico, respeitando o princípio de **Single Responsibility**.
+### EXIT
+- Calculates total parking time
+- Applies free tolerance period (30 minutes)
+- Calculates final amount
+- Releases parking spot and sector occupancy
+- Finalizes the parking session
 
 ---
 
-## 🧩 Arquitetura
+## 💰 Revenue Module
 
-O projeto evita classes monolíticas e segue uma arquitetura modular:
+The project exposes a revenue calculation feature that allows:
 
-- **ParkingService** → Roteador de eventos
-- **EntryEventHandler** → Lógica de entrada
-- **ParkedEventHandler** → Lógica de estacionamento físico
-- **ExitEventHandler** → Lógica de saída e faturamento
-- **RevenueService** → Cálculo de receita
-- Repositórios separados por agregados
+- Revenue lookup by date
+- Optional filtering by sector
+- Standardized response containing:
+  - total amount
+  - currency
+  - timestamp
 
-Essa abordagem garante:
-- Transações reais via proxy Spring
-- Eliminação de *self-invocation*
-- Testes unitários mais simples e focados
-- Evolução segura do código
+This logic is isolated in a dedicated service, following the **Single Responsibility Principle**.
 
 ---
 
-## 🧪 Testes & Qualidade
+## 🧩 Architecture Overview
 
-O projeto conta com:
+The application avoids monolithic services by splitting responsibilities into dedicated components:
 
-- Testes unitários por handler
-- Testes de roteamento de eventos
-- Cobertura de código com **JaCoCo**
-- Análise contínua de qualidade via **SonarCloud**
-- Pipeline CI com **GitHub Actions**
+- `ParkingService` – Event router
+- `EntryEventHandler` – Entry logic
+- `ParkedEventHandler` – Physical parking logic
+- `ExitEventHandler` – Exit and billing logic
+- `RevenueService` – Revenue calculation
+- Repository layer per aggregate
+
+This approach ensures:
+- Proper transactional boundaries
+- No self-invocation issues with Spring proxies
+- Easier unit testing
+- Safer future evolution
+
+---
+
+## 🧪 Testing & Quality
+
+- Unit tests per event handler
+- Routing tests for event dispatching
+- Code coverage generated with **JaCoCo**
+- Static analysis and Quality Gate via **SonarCloud**
+- Automated CI pipeline with **GitHub Actions**
 
 ---
 
 ## 🚀 CI/CD
 
-O pipeline automatizado executa:
+On every **push** or **pull request**, the pipeline executes:
 
-1. Build do projeto
-2. Execução dos testes
-3. Geração de relatório de cobertura
-4. Análise de qualidade no SonarCloud
+1. Build
+2. Test execution
+3. Coverage generation
+4. SonarCloud analysis
 
-Tudo é executado automaticamente em **push** e **pull request**.
-
----
-
-## 🎯 Objetivo do Projeto
-
-Demonstrar boas práticas de backend moderno, incluindo:
-
-- Arquitetura orientada a eventos
-- Uso correto de transações no Spring
-- Separação de responsabilidades
-- Código limpo e testável
-- Integração com ferramentas de qualidade e CI/CD
+The pipeline can be configured to block merges if quality gates fail.
 
 ---
 
-## 👨‍💻 Desenvolvedor
+## 🎯 Project Goal
+
+This project was developed to demonstrate:
+
+- Backend best practices
+- Event-driven architecture
+- Correct use of Spring transactions
+- Clean and maintainable code
+- Professional CI/CD and code quality workflow
+
+---
+
+## 👨‍💻 Developer
 
 **Luis Carlos**  
 Backend Developer  
-Java • Spring Boot • Arquitetura Orientada a Eventos
+Java • Spring Boot • Event-Driven Architecture
