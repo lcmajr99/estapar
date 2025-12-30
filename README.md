@@ -487,6 +487,6 @@ docker compose down -v
 
 ## 👨‍💻 Developer
 
-**Luis Carlos**  
+**Luis Carlos Jr**  
 Backend Developer  
 
