@@ -1,5 +1,6 @@
 package com.estapar.parking.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
@@ -7,60 +8,87 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 public class WebhookEventDTO {
 
-    private String license_plate;
-    private String event_type;
+    @JsonProperty("license_plate")
+    private String licensePlate;
 
-    private LocalDateTime entry_time;
-    private LocalDateTime exit_time;
+    @JsonProperty("event_type")
+    private String eventType;
+
+    @JsonProperty("entry_time")
+    private LocalDateTime entryTime;
+
+    @JsonProperty("exit_time")
+    private LocalDateTime exitTime;
 
     private Double lat;
     private Double lng;
 
-    public String getLicense_plate() {
-        return license_plate;
+    /* ---------- getters ---------- */
+
+    public String getLicensePlate() {
+        return licensePlate;
     }
 
-    public String getEvent_type() {
-        return event_type;
+    public String getEventType() {
+        return eventType;
     }
 
-    public LocalDateTime getEntry_time() {
-        return entry_time;
+    public LocalDateTime getEntryTime() {
+        return entryTime;
     }
 
-    public LocalDateTime getExit_time() {
-        return exit_time;
+    public LocalDateTime getExitTime() {
+        return exitTime;
     }
 
-    public Double getLat() { return lat; }
-    public void setLat(Double lat) { this.lat = lat; }
-
-    public Double getLng() { return lng; }
-
-    public void setLng(Double lng) { this.lng = lng; }
-
-    public void setExit_time(LocalDateTime exit_time) {
-        this.exit_time = exit_time;
+    public Double getLat() {
+        return lat;
     }
 
-    public void setEntry_time(LocalDateTime entry_time) {
-        this.entry_time = entry_time;
+    public Double getLng() {
+        return lng;
     }
 
-    public void setEvent_type(String event_type) {
-        this.event_type = event_type;
+    /* ---------- setters ---------- */
+
+    public void setLicensePlate(String licensePlate) {
+        this.licensePlate = licensePlate;
     }
 
-    public void setLicense_plate(String license_plate) {
-        this.license_plate = license_plate;
+    public void setEventType(String eventType) {
+        this.eventType = eventType;
     }
 
-    public WebhookEventDTO(String license_plate, LocalDateTime entry_time, LocalDateTime exit_time, String event_type, Double lat, Double lng) {
-        this.lng = lng;
+    public void setEntryTime(LocalDateTime entryTime) {
+        this.entryTime = entryTime;
+    }
+
+    public void setExitTime(LocalDateTime exitTime) {
+        this.exitTime = exitTime;
+    }
+
+    public void setLat(Double lat) {
         this.lat = lat;
-        this.exit_time = exit_time;
-        this.entry_time = entry_time;
-        this.event_type = event_type;
-        this.license_plate = license_plate;
+    }
+
+    public void setLng(Double lng) {
+        this.lng = lng;
+    }
+
+
+    public WebhookEventDTO(
+            String licensePlate,
+            LocalDateTime entryTime,
+            LocalDateTime exitTime,
+            String eventType,
+            Double lat,
+            Double lng
+    ) {
+        this.licensePlate = licensePlate;
+        this.entryTime = entryTime;
+        this.exitTime = exitTime;
+        this.eventType = eventType;
+        this.lat = lat;
+        this.lng = lng;
     }
 }
