@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    name: Build, Test & SonarCloud
+    name: Build and Analyze
     runs-on: ubuntu-latest
 
     steps:
@@ -30,7 +30,11 @@ jobs:
           key: maven-${{ hashFiles('**/pom.xml') }}
           restore-keys: maven-
 
-      - name: Build, Test & SonarCloud Scan
+      - name: Build & Test
+        working-directory: parking
+        run: mvn clean verify
+
+      - name: SonarCloud Scan
         working-directory: parking
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -39,3 +43,4 @@ jobs:
             -Dsonar.projectKey=estapar \
             -Dsonar.organization=lcmajr99 \
             -Dsonar.login=$SONAR_TOKEN
+            -Dsonar.host.url=https://sonarcloud.io
