@@ -42,5 +42,5 @@ jobs:
           mvn clean verify sonar:sonar \
             -Dsonar.projectKey=estapar \
             -Dsonar.organization=lcmajr99 \
+            -Dsonar.host.url=https://sonarcloud.io \
             -Dsonar.login=$SONAR_TOKEN
-            -Dsonar.host.url=https://sonarcloud.io
